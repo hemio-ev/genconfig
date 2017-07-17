@@ -41,6 +41,9 @@ import types
 import copy
 import fcntl
 
+development_mode = False
+development_output_dir = None
+
 class NeedData(Exception):
     def __str__(self):
         return "Filter needs more data to produce output."
@@ -521,7 +524,10 @@ def permissions_from_reference(filename, reffilename, selinux=False):
 
 
 class write_securely_to_file_template(Sink):
-    """A sink that writes securely to files given a template."""
+    """A sink that writes securely to files given a template.
+
+    .. TODO:: Can we remove ``write_securely_to_file_template`` or base it on 'write_securely_to_file'?
+    """
     def __init__(self, key, target_template, selinux=False):
         Sink.__init__(self)
         self._selinux = selinux
@@ -548,14 +554,14 @@ class write_securely_to_file(Sink):
         Sink.__init__(self)
         self._selinux = selinux
         if type(target) in (str,):
+            self._target = self._dev_target(target)
             self._managed = True
-            self._fd = open(target + '.new', 'w')
-            self._target = target
-            if os.path.isfile(target):
-                permissions_from_reference(target + '.new', target, selinux)
+            self._fd = open(self._target + '.new', 'w')
+            if os.path.isfile(self._target):
+                permissions_from_reference(self._target + '.new', self._target, selinux)
         else:
             self._managed = False
-            self._fd = target
+            self._fd = self._target
 
     def result(self):
         if self._managed:
@@ -567,6 +573,15 @@ class write_securely_to_file(Sink):
             
     def send(self, chunk):
         self._fd.write(''.join((chunk, '\n')))
+
+    def _dev_target(self, target: str):
+        global development_mode, development_output_dir
+        if development_mode:
+            target = os.path.normpath(development_output_dir + '/' + target)
+            directory = os.path.dirname(target)
+            os.makedirs(directory, mode=0o700, exist_ok=True)
+
+        return target
 
 class append_to_file(write_securely_to_file):
     def __init__(self, target):

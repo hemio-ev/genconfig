@@ -57,6 +57,7 @@ import crypt
 from collections import namedtuple as _namedtuple
 import datetime
 import pickle
+import tempfile
 
 from . import base
 from . import filters
@@ -252,7 +253,10 @@ class makedirs(base.Sink):
     'owner': the owner of the new dir
     'group': the group of the new dir
     'permissions': the permissions to apply (default if not available: 0o750)
-    'selinux_context': 'the selinux context to apply (default: None)"""
+    'selinux_context': 'the selinux context to apply (default: None)
+
+    .. TODO:: race
+    """
     #TODO: race
     def send(self, chunk):
         dirname = chunk['dirname']
@@ -368,7 +372,8 @@ def check_call_log(args,
     stdout will be logged with the given logging_func (default priority:
     logging.debug) so that you don't have to worry about the programm
     giving output."""
-    subp = subprocess.Popen(args,
+    if not base.development_mode:
+        subp = subprocess.Popen(args,
                             bufsize=bufsize,
                             executable=executable,
                             preexec_fn=preexec_fn,
@@ -381,14 +386,22 @@ def check_call_log(args,
                             creationflags=creationflags,
                             stdout=subprocess.PIPE,
                             stderr=subprocess.PIPE)
-    stdout, stderr = subp.communicate()
-    if stdout or subp.returncode:
-        logging_func("%s:out:%s", args, stdout)
-    if stderr or subp.returncode:
-        logging_func("%s:err:%s", args, stderr)
-    if subp.returncode:
-        raise subprocess.CalledProcessError(subp.returncode, args)
-    
+        stdout, stderr = subp.communicate()
+        if stdout or subp.returncode:
+            logging_func("%s:out:%s", args, stdout)
+        if stderr or subp.returncode:
+            logging_func("%s:err:%s", args, stderr)
+        if subp.returncode:
+            raise subprocess.CalledProcessError(subp.returncode, args)
+    else:
+        print("DEV_MODE: Info: Would be calling `{}`".format(args))
+        execmd = args[0] if executable is None else executable
+        execpath = shutil.which(execmd)
+        if execpath is None:
+            print("DEV_MODE: Warning: No executable found for '{}'".format(execmd))
+        else:
+            print("DEV_MODE: Info: Would be executing '{}'". format(execpath))
+
 
 ## Permission handling and file i/o
 def copytree_with_ids(src, dst,
@@ -652,7 +665,23 @@ def setup(loglevel=20):
         if not acquire_reported_lock():
             # Lock could be acquired but it was reported it couldn't be acquired
             logger.warning("Lock was dropped, resuming normal function.")
-            
+
+def dev_mode(dev_out_dir: str = None, dev_mode: bool = True, wipe: bool = False):
+    if dev_mode:
+        print("WARNING: DEVELOPMENT MODE IS ENABLED. Avoids writes and execs.")
+
+    base.development_mode = dev_mode
+
+    if dev_out_dir is None:
+        base.development_output_dir = tempfile.mkdtemp()
+        if wipe:
+            print("WARNING: dev_mode's wipe=True ignored while using tmpdir")
+    else:
+        base.development_output_dir = dev_out_dir
+        if wipe and os.path.isdir(base.development_output_dir):
+            shutil.rmtree(base.development_output_dir)
+
+    print("Development output directory is '{}'".format(base.development_output_dir))
 
 def tear_down():
     release_lock()
