@@ -1,5 +1,3 @@
-#!/usr/bin/python
-# -*- coding: utf-8
 """Useful utilities for genconfig"""
 
 __license__ = """
@@ -58,7 +56,7 @@ import spwd
 import crypt
 from collections import namedtuple as _namedtuple
 import datetime
-import cPickle as pickle
+import pickle
 
 from . import base
 from . import filters
@@ -138,7 +136,7 @@ class inject_system_passwd(base.Filter):
                 self._syspwd.append(pwd_entry)
         return self
 
-    def next(self):
+    def __next__(self):
         if self._syspwd:
             pwd_struct = self._syspwd.pop(0)
             chunk = {
@@ -165,7 +163,7 @@ class inject_mail_address(base.Filter):
                        'domain': domain}
         self._injected = False
 
-    def next(self):
+    def __next__(self):
         if not self._injected:
             chunk = self._dict
             self._injected = True
@@ -183,7 +181,7 @@ class inject_system_shadow(base.Filter):
                 self._sysspwd.append(spwd_entry)
         return self
 
-    def next(self):
+    def __next__(self):
         if self._sysspwd:
             spwd_struct = self._sysspwd.pop(0)
             chunk = {
@@ -212,7 +210,7 @@ class inject_system_group(base.Filter):
                 self._sysgrp.append(grp_entry)
         return self
 
-    def next(self):
+    def __next__(self):
         if self._sysgrp:
             grp_struct = self._sysgrp.pop(0)
             chunk = {
@@ -235,7 +233,7 @@ class inject_system_gshadow(base.Filter):
                 self._sysgrp.append(grp_entry)
         return self
 
-    def next(self):
+    def __next__(self):
         if self._sysgrp:
             grp_struct = self._sysgrp.pop(0)
             chunk = {
@@ -328,7 +326,7 @@ class Once(object):
         microseconds = (timedelta.days*24*60*60 + timedelta.seconds) * 1000 * 1000 + timedelta.microseconds
         filename = '/var/lib/genconfig/timestamp_%d' % microseconds
         try:
-            with open(filename) as fd:
+            with open(filename, 'rb') as fd:
                 lasttime = pickle.load(fd)
         except IOError:
             logger.warning('No database for timedelta %s found, using 1.1.1970' % timedelta)
@@ -336,13 +334,13 @@ class Once(object):
         now = datetime.datetime.now()
         self._truth = (now - lasttime) >= timedelta
         if self._truth:
-            with open(filename, 'w') as fd:
+            with open(filename, 'wb') as fd:
                 pickle.dump(now, fd)
         
     def __call__(self):
         return self
 
-    def __nonzero__(self):
+    def __bool__(self):
         return self._truth
 
 once_weekly = Once(datetime.timedelta(7))
@@ -612,7 +610,7 @@ def acquire_lock():
     If the lock was acquired already, will log this."""
     try:
         os.close(os.open(LOCKFILE, os.O_CREAT | os.O_EXCL | os.O_RDWR))
-    except OSError, err:
+    except OSError as err:
         if err.errno != errno.EEXIST:
             raise
         return False
@@ -626,7 +624,7 @@ def acquire_reported_lock():
     """Checks if a broken lock was already reported."""
     try:
         os.close(os.open(LOCKFILE + '.failed', os.O_CREAT | os.O_EXCL | os.O_RDWR))
-    except OSError, err:
+    except OSError as err:
         if err.errno != errno.EEXIST:
             raise
         return False

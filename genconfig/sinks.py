@@ -1,5 +1,3 @@
-#!/usr/bin/python
-# -*- coding: utf-8
 """Sink classes for pipe-like infix syntax"""
 
 __license__ = """
@@ -41,7 +39,7 @@ from . import base
 class dump(base.Sink):
     """Prints out all chunks."""
     def send(self, chunk):
-        print chunk
+        print(chunk)
 
 class concat(base.SinkNeedsAll):
     """Concatenate everything that comes along."""

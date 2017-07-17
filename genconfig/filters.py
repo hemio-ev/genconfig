@@ -1,5 +1,3 @@
-#!/usr/bin/python
-# -*- coding: utf-8
 """Filter classes for pipe-like infix syntax"""
 
 __license__ = """
@@ -50,14 +48,14 @@ logger = logging.getLogger('genconfig')
 
 class tee(base.Filter):
     """Dumps whatever comes along and passes it on."""
-    def next(self):
+    def __next__(self):
         chunk = self._chunk
         print(chunk)
         return chunk
 
 class cat(base.Filter):
     """for list | cat > file constructs"""
-    def next(self):
+    def __next__(self):
         return self._chunk
 
 class where(base.Filter):
@@ -65,7 +63,7 @@ class where(base.Filter):
         base.Filter.__init__(self)
         self._testing_function = testing_function
 
-    def next(self):
+    def __next__(self):
         chunk = self._chunk
         if self._testing_function(chunk):
             return chunk
@@ -78,8 +76,8 @@ class inject_from_producer(base.Filter):
         base.Filter.__init__(self)
         self._producer = producer
 
-    def next(self):
-        return self._producer.next()
+    def __next__(self):
+        return next(self._producer)
 
 class multiply_chunk(base.RawFilter):
     """Passes chunks trough each supplied filter in turn, yielding all outputs
@@ -115,7 +113,7 @@ class multiply_chunk(base.RawFilter):
             filt.send(copy.deepcopy(chunk))
         self._reset_filters_with_enough_data()
 
-    def next(self):
+    def __next__(self):
         if len(self._filters_with_enough_data) == 0: # no one has enough data at the moment
             if len(self._filters) == 0: # everyone is completely exhausted
                 raise StopIteration
@@ -126,7 +124,7 @@ class multiply_chunk(base.RawFilter):
                 break
             filt = self._filters_with_enough_data[0]
             try:
-                return filt.next()
+                return next(filt)
             except base.NeedData:
                 # filter does not have enough data anymore
                 self._filters_with_enough_data.remove(filt)
@@ -155,7 +153,7 @@ class CheckLog(base.Filter):
         self._key = key
 
     _loglevel = logging.WARN
-    def next(self):
+    def __next__(self):
         chunk = self._chunk
         if self._testing_function(chunk[self._key]):
             return chunk
@@ -171,7 +169,7 @@ class take_while(base.Filter):
         base.Filter.__init__(self)
         self._testing_function = testing_function
 
-    def next(self):
+    def __next__(self):
         chunk = self._chunk
         if not self._testing_function(chunk):
             raise StopIteration
@@ -183,7 +181,7 @@ class skip_while(base.Filter):
         self._testing_function = testing_function
         self._begun = False
 
-    def next(self):
+    def __next__(self):
         chunk = self._chunk
         if self._begun or not self._testing_function(chunk):
             raise base.NeedData
@@ -209,7 +207,7 @@ class take(base.Filter):
         base.Filter.__init__(self)
         self._left = maxnum
 
-    def next(self):
+    def __next__(self):
         chunk = self._chunk
         if self._left > 0:
             self._left -= 1
@@ -228,7 +226,7 @@ class tail(base.RawFilter):
         if len(self._queue) > self._n:
             self._queue.pop(0)
 
-    def next(self):
+    def __next__(self):
         if not self._last:
             raise base.NeedData
         if not self._queue:
@@ -241,7 +239,7 @@ class skip(base.Filter):
         base.Filter.__init__(self)
         self._to_go = n
 
-    def next(self):
+    def __next__(self):
         chunk = self._chunk
         if self._to_go > 0:
             self._to_go -= 1
@@ -251,7 +249,7 @@ class skip(base.Filter):
 class sh_filter(base.RawFilter):
     def __init__(self, args, error_on_ret = False, **kwargs):
         base.RawFilter.__init__(self)
-        if type(args) in types.StringTypes:
+        if type(args) in (str,):
             args = shlex.split(args)
         if 'stdin' in kwargs or 'stdout' in kwargs:
             raise ValueError("Can't reroute stdin or stdout, they are piped!")
@@ -278,7 +276,7 @@ class sh_filter(base.RawFilter):
     def send(self, chunk):
         self._subprocess.stdin.write(''.join((chunk, '\n')))
 
-    def next(self):
+    def __next__(self):
         # Read anything the process yields
         try:
             line_ = self._subprocess.stdout.readline()
@@ -301,7 +299,7 @@ class unique(base.Filter):
         base.Filter.__init__(self)
         self._seen = []
 
-    def next(self):
+    def __next__(self):
         chunk = self._chunk
         if chunk not in self._seen:
             self._seen.append(chunk)
@@ -316,7 +314,7 @@ class running_sum(base.Filter):
         base.Filter.__init__(self)
         self._value = 0
 
-    def next(self):
+    def __next__(self):
         self._value += self._chunk
         return self._value
 
@@ -331,7 +329,7 @@ class running_average(base.Filter):
         self._average = 0.0
         self._num = 0
 
-    def next(self):
+    def __next__(self):
         self._num += 1
         self._average += (self._chunk - self._average) / self._num
         return self._average
@@ -342,7 +340,7 @@ class apply(base.Filter):
         base.Filter.__init__(self)
         self._function = function
     
-    def next(self):
+    def __next__(self):
         return self._function(self._chunk)
 
     def __str__(self):
@@ -354,7 +352,7 @@ class to_formatted_string(base.Filter):
         base.Filter.__init__(self)
         self._format = format_string
 
-    def next(self):
+    def __next__(self):
         return self._format % self._chunk
 
     def __str__(self):
@@ -368,7 +366,7 @@ class to_passwd_line(base.Filter):
 
     template = '%(name)s:%(password)s:%(uid)d:%(gid)d:%(gecos)s:%(home)s:%(shell)s'
 
-    def next(self):
+    def __next__(self):
         return self.template % self._chunk
 
     def __str__(self):
@@ -379,7 +377,7 @@ class to_passwd_line_with_quota(to_passwd_line):
     quota is not None"""
     quota_template = to_passwd_line.template + ':userdb_quota_rule=*:bytes=%(quota)dM'
 
-    def next(self):
+    def __next__(self):
         chunk = self._chunk
         if chunk['quota'] is None:
             return self.template % chunk
@@ -400,7 +398,7 @@ class to_shadow_line(base.Filter):
 
     template = '%(name)s:%(password)s:%(lastchange)s:%(minage)s:%(maxage)s:%(warning_period)s:%(inact_period)s:%(expire_date)s:%(reserved)s'
 
-    def next(self):
+    def __next__(self):
         chunk = self._chunk
         for i in ('lastchange', 'minage', 'maxage', 'warning_period', 'inact_period', 'expire_date', 'reserved'):
             chunk.setdefault(i, '')
@@ -419,7 +417,7 @@ class to_group_line(base.Filter):
 
     template = '%(group_name)s:%(group_password)s:%(gid)d:%(_member_list_str)s'
 
-    def next(self):
+    def __next__(self):
         chunk = self._chunk
         chunk['_member_list_str'] = ','.join(chunk['member_list'])
         return self.template % chunk
@@ -435,7 +433,7 @@ class to_gshadow_line(base.Filter):
 
     template = '%(group_name)s:%(group_password)s:%(_administrator_list_str)s:%(_member_list_str)s'
 
-    def next(self):
+    def __next__(self):
         chunk = self._chunk
         chunk['_administrator_list_str'] = ','.join(chunk['administrator_list'])
         chunk['_member_list_str'] = ','.join(chunk['member_list'])
@@ -458,7 +456,7 @@ class to_apache2_vhost(base.Filter):
     template_ssl = '    Use GenconfigVhostSsl "{domain}" "{port}" "{https}"\n'
     template_redirect = '    Redirect permanent / {option[redirect_url]}\n'
 
-    def next(self):
+    def __next__(self):
         chunk = self._chunk
 
         chunk['addons'] = ''
@@ -482,9 +480,9 @@ class FromValue(base.Filter):
         self._newkey = newkey
         self._value = value
 
-    def next(self):
+    def __next__(self):
         chunk = self._chunk
-        if type(self._value) in types.StringTypes:
+        if type(self._value) in (str,):
             value = self._value % chunk
         else:
             value = self._value
@@ -497,7 +495,7 @@ class FromKey(base.Filter):
         self._newkey = newkey
         self._oldkey = oldkey
 
-    def next(self):
+    def __next__(self):
         chunk = self._chunk
         return self._set(chunk, self._newkey, chunk[self._oldkey])
 
@@ -508,7 +506,7 @@ class FromFunction(base.Filter):
         self._newkey = newkey
         self._function = function
 
-    def next(self):
+    def __next__(self):
         chunk = self._chunk
         return self._set(chunk, self._newkey, self._function(chunk))
 
@@ -565,7 +563,7 @@ class inject(base.Filter):
         self._obj = obj
         self._injected = False
 
-    def next(self):
+    def __next__(self):
         if not self._injected:
             chunk = self._obj
             self._injected = True
@@ -574,7 +572,7 @@ class inject(base.Filter):
         return chunk
 
 def format_if_string(obj, dict_):
-    if type(obj) in types.StringTypes:
+    if type(obj) in (str,):
         return obj % dict_
     else:
         return obj
@@ -587,7 +585,7 @@ class replace_from_key(base.Filter):
         self._oldvalue = oldvalue
         self._oldkey = oldkey
 
-    def next(self):
+    def __next__(self):
         chunk = self._chunk
         try:
             if chunk[self._key] == format_if_string(self._oldvalue, chunk):
@@ -603,7 +601,7 @@ class replace_from_value(base.Filter):
         self._oldvalue = oldvalue
         self._newvalue = newvalue
 
-    def next(self):
+    def __next__(self):
         chunk = self._chunk
         try:
             if chunk[self._key] == format_if_string(self._oldvalue, chunk):
@@ -619,7 +617,7 @@ class replace_from_function(base.Filter):
         self._oldvalue = oldvalue
         self._function = function
 
-    def next(self):
+    def __next__(self):
         chunk = self._chunk
         try:
             if chunk[self._key] == format_if_string(self._oldvalue):
@@ -633,7 +631,7 @@ class to_dict(base.Filter):
         base.Filter.__init__(self)
         self._keys = keys
 
-    def next(self):
+    def __next__(self):
         chunk = self._chunk
         if self._keys is None:
             return dict(chunk)
@@ -649,17 +647,17 @@ class to_dict(base.Filter):
             return 'to_dict(%s)' % (str(self._keys))
 
 class to_string(base.Filter):
-    def next(self):
+    def __next__(self):
         return str(self._chunk)
 
     def __str__(self):
         return 'to_str()'
 
 class traverse(base.Filter):
-    def next(self):
+    def __next__(self):
         chunk = self._chunk
         try:
-            if type(chunk) in types.StringTypes:
+            if type(chunk) in (str,):
                 return chunk
             else:
                 with chunk | traverse() | to_string() as source:
@@ -678,7 +676,7 @@ class log(base.Filter):
         self._loglevel = loglevel
         self._msg = msg
 
-    def next(self):
+    def __next__(self):
         chunk = self._chunk
         logger.log(self._loglevel, ' :'.join((self._msg, str(chunk))))
         return chunk
