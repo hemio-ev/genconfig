@@ -1,5 +1,3 @@
-#/usr/bin/env python
-# coding: utf-8
 """Python utilities for pipe-like infix notation.
 There are three distinct types of pipe-aware objects:
 Producers do not consume any input, but generate output.
