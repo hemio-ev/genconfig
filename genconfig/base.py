@@ -1,5 +1,3 @@
-#!/usr/bin/python
-# -*- coding: utf-8
 """Base classes for pipe-like infix syntax"""
 
 __license__ = """
@@ -146,7 +144,7 @@ class RawFilter(Pipe, EasyWriteMixIn):
     def send(self, chunk):
         pass
 
-    def next(self):
+    def __next__(self):
         raise StopIteration
 
     def __ror__(self, other):
@@ -193,7 +191,7 @@ class Filter(RawFilter):
 
     _chunk = property(_get_chunk, _set_chunk)
 
-    def next(self):
+    def __next__(self):
         return self._chunk
     
     def send(self, chunk):
@@ -215,12 +213,12 @@ class CombinedFilter(RawFilter):
     def last(self):
         self._source.last()
 
-    def next(self):
+    def __next__(self):
         # Try if we can get a value from the target
         # without providing more info
         # A StopIteration from the target will be propagated
         try:
-            return self._target.next()
+            return next(self._target)
         except NeedData:
             pass
         # Target needs data - will pull chunks from the source
@@ -232,7 +230,7 @@ class CombinedFilter(RawFilter):
         while True:
             if not self._source_exhausted:
                 try:
-                    self._target.send(self._source.next())
+                    self._target.send(next(self._source))
                     # The maybe raised NeedData will just be propagated
                     # to the caller, which is fine -- we are in a need
                     # of data then.
@@ -240,7 +238,7 @@ class CombinedFilter(RawFilter):
                     self._target.last()
                     self._source_exhausted = True
             try:
-                return self._target.next()
+                return next(self._target)
             except NeedData:
                 pass
 
@@ -277,13 +275,13 @@ class FilterNeedsAll(RawFilter):
         self._output = []
         self._processed = False
 
-    def next(self):
+    def __next__(self):
         if not self._last:
             raise NeedData
         if not self._processed:
             self._output = iter(self._process(self._input))
             self._processed = True
-        return self._output.next()
+        return next(self._output)
 
     def send(self, chunk):
         self._input.append(chunk)
@@ -314,7 +312,7 @@ class Producer(Pipe, EasyWriteMixIn):
     def __exit__(self, type_=None, value=None, traceback=None):
         pass
 
-    def next(self):
+    def __next__(self):
         raise StopIteration
 
 
@@ -327,8 +325,8 @@ class IteratorProducer(Producer):
         Producer.__init__(self)
         self._iterator = iter(iterator)
 
-    def next(self):
-        return self._iterator.next()
+    def __next__(self):
+        return next(self._iterator)
 
     def __repr__(self):
         return "IteratorProducer(%s)" % repr(self._iterator)
@@ -356,10 +354,10 @@ class FilteredProducer(Producer):
         self._producer.__exit__()
         self._filter.__exit__()
 
-    def next(self):
+    def __next__(self):
         # StopIteration would be propagated to the caller
         try:
-            return self._filter.next()
+            return next(self._filter)
         except NeedData:
             # no more data for the filter
             if self._producer_exhausted:
@@ -367,12 +365,12 @@ class FilteredProducer(Producer):
             while True:
                 # StopIteration of the producer means we have to call last on the filter
                 try:
-                    self._filter.send(self._producer.next())
+                    self._filter.send(next(self._producer))
                 except StopIteration:
                     self._producer_exhausted = True
                     self._filter.last()
                 try:
-                    return self._filter.next()
+                    return next(self._filter)
                 except NeedData:
                     # no more data for the filter
                     if self._producer_exhausted:
@@ -445,7 +443,7 @@ class FilteredSink(Sink):
         self._premature_close = False
         while True:
             try:
-                self._sink.send(self._filter.next())
+                self._sink.send(next(self._filter))
             except NeedData:
                 break
             except StopIteration:
@@ -462,7 +460,7 @@ class FilteredSink(Sink):
         self._filter.send(chunk)
         while True:
             try:
-                self._sink.send(self._filter.next())
+                self._sink.send(next(self._filter))
             except NeedData:
                 break
 
@@ -549,7 +547,7 @@ class write_securely_to_file(Sink):
     def __init__(self, target, selinux=False):
         Sink.__init__(self)
         self._selinux = selinux
-        if type(target) in types.StringTypes:
+        if type(target) in (str,):
             self._managed = True
             self._fd = open(target + '.new', 'w')
             self._target = target
@@ -573,7 +571,7 @@ class write_securely_to_file(Sink):
 class append_to_file(write_securely_to_file):
     def __init__(self, target):
         write_securely_to_file.__init__(self, target)
-        if type(target) in types.StringTypes:
+        if type(target) in (str,):
             self._managed = True
             self._fd = open(target + '.new', 'a')
         else:

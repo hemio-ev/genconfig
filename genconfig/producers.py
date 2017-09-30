@@ -1,5 +1,3 @@
-#!/usr/bin/python
-# -*- coding: utf-8
 """Producer classes for pipe-like infix syntax"""
 
 __license__ = """
@@ -45,7 +43,7 @@ class sh(base.Producer):
     """Produce from a shell command"""
     def __init__(self, args, error_on_ret = False, **kwargs):
         base.Producer.__init__(self)
-        if type(args) in types.StringTypes:
+        if type(args) in (str,):
             args = shlex.split(args)
         if 'stdout' in kwargs:
             raise ValueError("Can't reroute stdout, it is piped!")
@@ -62,7 +60,7 @@ class sh(base.Producer):
                                             **self._kwargs)
         return self
     
-    def next(self):
+    def __next__(self):
         # Read anything the process yields
         line_ = self._subprocess.stdout.readline()
         if line_ == '':
@@ -82,7 +80,7 @@ class echo(base.Producer):
         base.Producer.__init__(self)
         self.out = out
 
-    def next(self):
+    def __next__(self):
         if self.out is not None:
             ret = self.out
             self.out = None
