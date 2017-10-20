@@ -188,14 +188,13 @@ class skip_while(base.Filter):
         return chunk
 
 class sort(base.FilterNeedsAll):
-    def __init__(self, cmp_=None, key=None, reverse=False):
+    def __init__(self, key=None, reverse=False):
         base.FilterNeedsAll.__init__(self)
-        self._cmp = cmp_
         self._key = key
         self._reverse = reverse
 
     def _process(self, _input):
-        return sorted(_input, self._cmp, self._key, self._reverse)
+        return sorted(_input, key=self._key, reverse=self._reverse)
 
 class reverse(base.FilterNeedsAll):
     def _process(self, _input):
