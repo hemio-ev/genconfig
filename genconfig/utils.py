@@ -286,7 +286,7 @@ class write_php_cgi(base.Sink):
     def send(self, chunk):
         filepath = chunk['filepath']
         with open(filepath, 'w') as f:
-            f.write('#!/bin/bash\nexec /usr/lib/cgi-bin/php5')
+            f.write('#!/bin/bash\nexec /usr/lib/cgi-bin/php')
             f.close
 
 class make_home_dirs(base.Sink):
