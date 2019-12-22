@@ -442,31 +442,33 @@ class to_gshadow_line(base.Filter):
         return 'to_gshadow_line()'
 
 class to_apache2_vhost(base.Filter):
-    """Converts a dictionary containing the keys 'address4'
-    or 'address6' into a apache2 config vhost. More options
-    listed in config_keys can be given in the dict."""
 
     template_vhost = """
 <VirtualHost *:{port}>
     Use GenconfigVhostDefaults "{user}" "{domain}" "{port}" "{aliases}"
-{addons}</VirtualHost>
+</VirtualHost>
 """
-
-    template_ssl = '    Use GenconfigVhostSsl "{domain}" "{port}" "{https}"\n'
-    template_redirect = '    Redirect permanent / {option[redirect_url]}\n'
+    template_vhost_ssl = """
+MDomain "{domain}"
+<VirtualHost *:{port}>
+    Use GenconfigVhostDefaults "{user}" "{domain}" "{port}" "{aliases}"
+    SSLEngine On
+</VirtualHost>
+"""
 
     def __next__(self):
         chunk = self._chunk
 
-        chunk['addons'] = ''
+        res = ""
 
-        if chunk['https'] is not None:
-            chunk['addons'] += self.template_ssl.format(**chunk)
+        if chunk['https']:
+            res += self.template_vhost_ssl.format(**chunk)
+            if chunk['port'] == 443:
+                res += self.template_vhost.format(**{**chunk, 'port': 80})
+        else:
+            res += self.template_vhost.format(**chunk)
 
-        if chunk['subservice'] == 'http_redirect':
-            chunk['addons'] += self.template_redirect.format(**chunk)
-
-        return self.template_vhost.format(**chunk)
+        return res
 
     def __str__(self):
         return 'to_apache2_vhost()'
