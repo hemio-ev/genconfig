@@ -464,7 +464,9 @@ MDomain "{domain}"
         if chunk['https']:
             res += self.template_vhost_ssl.format(**chunk)
             if chunk['port'] == 443:
-                res += self.template_vhost.format(**{**chunk, 'port': 80})
+                nchunk = chunk.copy()
+                nchunk.update(port=80)
+                res += self.template_vhost.format(**nchunk)
         else:
             res += self.template_vhost.format(**chunk)
 
