@@ -445,13 +445,13 @@ class to_apache2_vhost(base.Filter):
 
     template_vhost = """
 <VirtualHost *:{port}>
-    Use GenconfigVhostDefaults "{user}" "{domain}" "{port}" "{aliases}"
+    Use GenconfigVhostDefaults "{user}" "{user_cgi}" "{domain}" "{port}" "{aliases}"
 </VirtualHost>
 """
     template_vhost_ssl = """
 MDomain "{domain}"
 <VirtualHost *:{port}>
-    Use GenconfigVhostDefaults "{user}" "{domain}" "{port}" "{aliases}"
+    Use GenconfigVhostDefaults "{user}" "{user_cgi}" "{domain}" "{port}" "{aliases}"
     SSLEngine On
 </VirtualHost>
 """
